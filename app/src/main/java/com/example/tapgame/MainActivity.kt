@@ -236,5 +236,11 @@ class GameModel {
     private fun separate() {
         val dx = enemy.x - player.x
         val minD = 50f
-        if (abs(dx) < minD && player.y < 60f && enemy.y < 60f) {
-            val push = (minD - abs
+        val dist = abs(dx)
+        if (dist < minD && player.y < 60f && enemy.y < 60f) {
+            val push = (minD - dist) / 2f
+            val dir = if (dx >= 0f) 1 else -1
+            player.x -= dir * push
+            enemy.x += dir * push
+        }
+    }
