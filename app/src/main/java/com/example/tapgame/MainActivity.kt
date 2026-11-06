@@ -248,3 +248,111 @@ class GameModel {
 
 @Composable
 fun GameScreen(onGameOver: (Boolean) -> Unit) {
+    val model = remember { GameModel() }
+
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (!model.finished) {
+            withFrameNanos { now ->
+                val dt = if (last == 0L) 0.016f else ((now - last) / 1e9f).coerceAtMost(0.033f)
+                last = now
+                model.step(dt, onGameOver)
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize()) {
+            val unused = model.tick
+            val s = minOf(size.width / WORLD_W, size.height / WORLD_H)
+            val ox = (size.width - WORLD_W * s) / 2f
+            val oy = (size.height - WORLD_H * s) / 2f
+            translate(ox, oy) {
+                scale(s, s, Offset.Zero) { drawWorld(model) }
+            }
+        }
+
+        Text(
+            "${model.pWins} - ${model.eWins}   ⏱ ${model.timeLeft}",
+            Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+            color = Color.White
+        )
+        if (model.banner.isNotEmpty()) {
+            Text(
+                model.banner,
+                Modifier.align(Alignment.Center),
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White
+            )
+        }
+
+        Row(
+            Modifier.align(Alignment.BottomStart).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HoldButton("←") { model.left = it }
+            HoldButton("→") { model.right = it }
+        }
+        Row(
+            Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HoldButton("Saltar") { if (it) model.player.jump() }
+            HoldButton("Puño") { if (it) model.player.attack(1) }
+            HoldButton("Patada") { if (it) model.player.attack(2) }
+            HoldButton("Guardia") { model.player.blockInput = it }
+        }
+    }
+}
+
+@Composable
+fun HoldButton(label: String, onChange: (Boolean) -> Unit) {
+    Box(
+        Modifier
+            .size(68.dp)
+            .background(Color(0x99000000), CircleShape)
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = {
+                    onChange(true)
+                    tryAwaitRelease()
+                    onChange(false)
+                })
+            },
+        contentAlignment = Alignment.Center
+    ) { Text(label, color = Color.White, fontSize = 12.sp) }
+}
+
+private fun DrawScope.drawWorld(m: GameModel) {
+    drawRect(Color(0xFF1A237E), Offset.Zero, Size(WORLD_W, GROUND))
+    drawRect(Color(0xFF4E342E), Offset(0f, GROUND), Size(WORLD_W, WORLD_H - GROUND))
+
+    drawRect(Color(0xFF333333), Offset(20f, 20f), Size(320f, 18f))
+    drawRect(Color(0xFF43A047), Offset(20f, 20f), Size(320f * m.player.hp / 100f, 18f))
+    drawRect(Color(0xFF333333), Offset(460f, 20f), Size(320f, 18f))
+    val ew = 320f * m.enemy.hp / 100f
+    drawRect(Color(0xFFE53935), Offset(780f - ew, 20f), Size(ew, 18f))
+
+    drawFighter(m.player)
+    drawFighter(m.enemy)
+}
+
+private fun DrawScope.drawFighter(f: Fighter) {
+    val footY = GROUND - f.y
+    val top = footY - 90f
+    val body = if (f.stun > 0f) Color.White else f.color
+    drawRect(body, Offset(f.x - 20f, top), Size(40f, 90f))
+    drawCircle(body, 16f, Offset(f.x, top - 16f))
+    if (f.attackTimer > 0f) {
+        val punch = f.attackType == 1
+        val len = if (punch) 55f else 75f
+        val ly = if (punch) top + 20f else top + 60f
+        val th = if (punch) 12f else 16f
+        val startX = f.x + f.facing * 20f
+        val left = if (f.facing > 0) startX else startX - len
+        drawRect(Color(0xFFFFCC80), Offset(left, ly), Size(len, th))
+    }
+    if (f.blocking) {
+        val sx = f.x + f.facing * 28f
+        drawRect(Color(0x8800E5FF), Offset(sx - 6f, top - 10f), Size(12f, 110f))
+    }
+}
