@@ -244,3 +244,7 @@ class GameModel {
             enemy.x += dir * push
         }
     }
+}
+
+@Composable
+fun GameScreen(onGameOver: (Boolean) -> Unit) {
